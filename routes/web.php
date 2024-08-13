@@ -14,6 +14,9 @@ use App\Http\Controllers\PageController;
 |
 */
 
-// Route::get('/',[PageController::class,'index']);
+ Route::get('/',function(){
 
-// Route::get('/register',[PageController::class,'register']);
+    return view('welcome');
+ });
+
+
