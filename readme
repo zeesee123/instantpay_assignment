@@ -14,3 +14,23 @@ another token for user 1
 token for user 2
 
 5|JHf2fIhKWzdHsCsRvVBQRlLdvKDyrpNthpZyGsqSfdea8be3
+
+
+try catch block
+
+try{}catch(Exception $e){
+
+    return response()->json(['status'=>'error','message'=>$e->getMessage()],500);
+}
+
+
+
+
+user 1 my 
+
+8|G4Q9CqjBPkuiSunDSpBr5KNXCyI98XkPfXxuKUFe5e196655
+
+
+user 2 my 
+
+9|yFWG7WA2rAEvSQbs1XbyWx0SKQZ4PqbM3RYkKHK759c942f1

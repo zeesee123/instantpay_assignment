@@ -11,7 +11,9 @@ use Illuminate\Support\Facades\Cache;
 class BoardController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Get the cache key for the user's boards.
+     *
+     * @return string
      */
 
      protected function getCacheKey(){
@@ -19,43 +21,49 @@ class BoardController extends Controller
         return 'board_'.Auth::id();
      }
 
-     public function user($board){
 
-        if($board->user_id==Auth::id()){
+    /**
+     * Check if the authenticated user is the owner of the given board.
+     *
+     * @param Board $board
+     * @return bool
+     */
 
-            return true;
-        }
+     public function isBoardOwner($board){
 
-        return false;
+        return $board->user_id === Auth::id();
      }
 
+
+    /**
+     * Display a listing of the boards for the authenticated user.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
     
-    public function index()
+     public function index()
     {
-        //
+        
 
         try{
 
-            
-
+            // Retrieve boards from cache or query the database if not cached
             $boards=Cache::remember($this->getCacheKey(),600,function(){
                 
                 return Board::where('user_id',Auth::id())->get();
             });
 
-            if($boards->count()>0){
+            if($boards->isEmpty()){
 
-               return response()->json(['status'=>'success','boards'=>$boards],200);
-
-            }else{
-
-               return response()->json(['status'=>'error','message'=>'there are no boards'],404);
+                return response()->json(['status'=>'error','message'=>'No boards found'],404);
 
             }
 
+            return response()->json(['status'=>'success','boards'=>$boards],200);
+
         }catch(Exception $e){
         
-            return response()->json(['status'=>'error','message'=>$e->getMessage()],500);
+            return response()->json(['status'=>'error','message'=>'Failed to retrieve boards: '.$e->getMessage()],500);
 
         }
 
@@ -63,8 +71,12 @@ class BoardController extends Controller
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Store a newly created board in storage.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\JsonResponse
      */
+
     public function store(Request $request)
     {
         //
@@ -80,44 +92,67 @@ class BoardController extends Controller
             $board->user_id=Auth::id();
             $board->save();
 
+
+            // Clear cache after creating a new board
             Cache::forget($this->getCacheKey());
 
 
-            return response()->json(['status'=>'success','message'=>'board created successfully','board'=>$board]);
+            return response()->json(['status'=>'success','message'=>'Board created successfully','board'=>$board],201);
 
 
 
             
         }catch(Exception $e){
 
-            return response()->json(['status'=>'success','message'=>'board created successfully']);
+            return response()->json(['status'=>'success','message'=>'Failed to create the board: '.$e->getMessage()],500);
 
 
         }
     }
 
+    
     /**
-     * Display the specified resource.
+     * Display the specified board.
+     *
+     * @param string $id
+     * @return \Illuminate\Http\JsonResponse
      */
+
     public function show(string $id)
     {
         //
-        $board=Board::find($id);
+        try{
 
-        if($board){
+            $board=Board::findOrFail($id);
+
+            // Check if the current user is the owner of the board
+            if(!$this->isBoardOwner($board)){
+
+                return response()->json(['status'=>'error','board'=>'Unauthorized access to this board'],403);
+
+            }
 
             return response()->json(['status'=>'success','board'=>$board],200);
-        
-        }else{
 
-            return response()->json(['status'=>'error','message'=>'there is no such board'],404);
+        }catch(Exception $e){
 
+            return response()->json(['status'=>'error','message'=>'Failed to retrieve the board: '.$e->getMessage()],500);
         }
+        
+        
+        
+        
     }
 
+
     /**
-     * Update the specified resource in storage.
+     * Update the specified board in storage.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @param string $id
+     * @return \Illuminate\Http\JsonResponse
      */
+
     public function update(Request $request, string $id)
     {
         //
@@ -128,72 +163,69 @@ class BoardController extends Controller
 
             $request->validate(['name'=>'required']);
 
-            $board=Board::find($id);
+            $board=Board::findOrFail($id);
 
-            if($this->user($board)){
+            // Check if the current user is the owner of the board
+            if(!$this->isBoardOwner($board)){
 
-                if($board){
+                return response()->json(['status'=>'error','message'=>'Unauthorized to update this board'],403);
 
-                    $board->name=$request->name;
-                    $board->save();
-
-                    Cache::forget($this->getCacheKey());
-
-                    return response()->json(['status'=>'success','message'=>'board updated successfully','board'=>$board],200);
-
-                 }else{
-     
-                    return response()->json(['status'=>'error','message'=>'the board does not exist'],404);
-                 }
-
-            }else{
-                
-                return response()->json(['status'=>'error','message'=>'you are not allowed to update this board']);
             }
+
+
+            $board->name=$request->name;
+            $board->save();
+
+            // Clear cache after updating the board
+            Cache::forget($this->getCacheKey());
+
+            return response()->json(['status'=>'success','message'=>'Board updated successfully','board'=>$board],200);
 
             
 
         }catch(Exception $e){
 
-            return response()->json(['status'=>'error','message'=>$e->getMessage()]);
+            return response()->json(['status'=>'error','message'=>'Failed to update the board: '.$e->getMessage()],500);
 
         }
         
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Remove the specified board from storage.
+     *
+     * @param string $id
+     * @return \Illuminate\Http\JsonResponse
      */
+
     public function destroy(string $id)
     {
         //
         try{
 
-            $board=Board::find($id);
+            $board=Board::findOrFail($id);
 
-            if($board){
+            
+            // Check if the current user is the owner of the board
+            if(!$this->isBoardOwner($board)){
 
-                if($this->user($board)){
-
-
-                    $board->delete();
-
-                    Cache::forget($this->getCacheKey());
-
-                    return response()->json(['status'=>'success','message'=>'board destroyed successfully'],200);
-                
-                }else{
-
-                    return response()->json(['status'=>'success','message'=>'you cannot do this'],200);
-
-                }
+                return response()->json(['status'=>'error','message'=>'Unauthorized to delete this board'],403);
             }
 
-            return response()->json(['status'=>'error','message'=>'board does not exist'],404);
+
+            $board->delete();
+
+            // Clear cache after deleting the board
+            Cache::forget($this->getCacheKey());
+
+            return response()->json(['status'=>'success','message'=>'Board deleted successfully'],200);
+            
+
+            
 
         }catch(Exception $e){
 
-            return response()->json(['status'=>'error','message'=>$e->getMessage()],500);
+            return response()->json(['status'=>'error','message'=>'Failed to delete the board: '.$e->getMessage()],500);
         }
     }
 }

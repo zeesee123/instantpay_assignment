@@ -17,7 +17,7 @@
 
     @yield('content')
 
-</div>abc
+</div>
     
 </body>
 
